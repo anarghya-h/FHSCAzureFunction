@@ -10,7 +10,7 @@ using IdentityModel.Client;
 
 namespace FHSCAzureFunction.Services
 {
-    public class AuthenticationService : IHostedService, IDisposable
+    public class AuthenticationService : IDisposable
     {
         #region Private members variables
         private readonly SDxConfig sdxConfig;
@@ -34,6 +34,7 @@ namespace FHSCAzureFunction.Services
         public Task StartAsync(CancellationToken stoppingToken)
         {
             tokenResponse = GetOAuthTokenClientCredentialsFlow(sdxConfig.AuthServerAuthority, sdxConfig.AuthClientId, sdxConfig.AuthClientSecret, sdxConfig.ServerResourceID);
+            Console.WriteLine("Executed method to get token");
             return Task.CompletedTask;
         }
 

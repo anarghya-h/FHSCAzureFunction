@@ -10,6 +10,6 @@ namespace FHSCAzureFunction.Models
         public string GsapFilePath { get; set; }
         public string EquipmentFilePath { get; set; }
         public string ServerUri { get; set; }
-        public string AccessToken { get; set; }
+        public string EncodedAccessToken { get; set; }
     }
 }

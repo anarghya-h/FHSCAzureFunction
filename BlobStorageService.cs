@@ -89,10 +89,7 @@ namespace FHSCAzureFunction
                 CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(ContainerName);
                 //string fileName = this.GenerateFileName(strFileName);
 
-                if (await cloudBlobContainer.CreateIfNotExistsAsync())
-                {
-                    await cloudBlobContainer.SetPermissionsAsync(new BlobContainerPermissions { PublicAccess = BlobContainerPublicAccessType.Blob });
-                }
+                await cloudBlobContainer.SetPermissionsAsync(new BlobContainerPermissions { PublicAccess = BlobContainerPublicAccessType.Blob });
 
                 if (strFileName != null && fileData != null)
                 {
@@ -111,22 +108,23 @@ namespace FHSCAzureFunction
 
         private async Task<MemoryStream> DownloadFileFromBlobAsync(string fileUrl)
         {
-            Uri uriObj = new Uri(fileUrl);
+            MemoryStream memoryStream = new MemoryStream();
             try
             {
                 CloudStorageAccount cloudStorageAccount = CloudStorageAccount.Parse(AccessKey);
                 CloudBlobClient cloudBlobClient = cloudStorageAccount.CreateCloudBlobClient();
                 //string strContainerName = "uploads";
                 CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(ContainerName);
-                CloudBlockBlob blockBlob = new CloudBlockBlob(uriObj);
-                using (MemoryStream memoryStream = new MemoryStream())
-                {
-                    await blockBlob.DownloadToStreamAsync(memoryStream);
-                    return memoryStream;
-                }
+                CloudBlockBlob blockBlob = new CloudBlockBlob(new Uri(fileUrl));
+                              
+                await blockBlob.DownloadToStreamAsync(memoryStream);
+                memoryStream.Position = 0;
+                return memoryStream;
+                
             }
             catch (Exception e)
             {
+                memoryStream.Dispose();
                 throw e;
             }
         }

@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using FHSCAzureFunction.Services;
 using FHSCAzureFunction.Models.Configs;
 using Microsoft.Extensions.Hosting;
+using FHSCAzureFunction.AppConfig;
 
 [assembly: FunctionsStartup(typeof(FHSCAzureFunction.Startup))]
 namespace FHSCAzureFunction
@@ -26,6 +27,7 @@ namespace FHSCAzureFunction
         public override void Configure(IFunctionsHostBuilder builder)
         {
             var Configuration = builder.Services.BuildServiceProvider().GetService<IConfiguration>();
+            AppConfiguration.SetConfig(Configuration);
             string ConnString = Configuration.GetConnectionString("DefaultConnection");
             builder.Services.AddDbContext<FlocHierarchyDBContext>(
               options => options.UseSqlServer(ConnString));
@@ -43,7 +45,7 @@ namespace FHSCAzureFunction
             builder.Services.AddSingleton(sDxConfig);
             builder.Services.AddAutoMapper(typeof(SDxConfig));
             builder.Services.AddSingleton<AuthenticationService>();
-            builder.Services.AddSingleton<IHostedService, AuthenticationService>(serviceProvider => serviceProvider.GetService<AuthenticationService>());
+            //builder.Services.AddSingleton<AuthenticationService>(serviceProvider => serviceProvider.GetService<AuthenticationService>());
         }
     }
 }

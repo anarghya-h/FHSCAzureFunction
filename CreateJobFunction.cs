@@ -24,29 +24,32 @@ using RestSharp.Serializers.NewtonsoftJson;
 using X14 = DocumentFormat.OpenXml.Office2010.Excel;
 using FHSCAzureFunction.Models.Configs;
 using FHSCAzureFunction.Services;
+using System.Diagnostics;
 
 namespace FHSCAzureFunction
 {
     public class CreateJobFunction
     {
+        private readonly Stopwatch stopWatch = new Stopwatch();
         private readonly FlocHierarchyDBContext dbContext;
         private readonly IWebHostEnvironment webEnvironment;
         private readonly BlobStorageService blobStorageService;
         private Dictionary<string, string> Reports;
         SDxConfig config;
-        AuthenticationService authService;
+        //AuthenticationService authService;
+        string Token;
         public CreateJobFunction(FlocHierarchyDBContext context, IWebHostEnvironment env, SDxConfig sDxConfig, AuthenticationService service)
         {
             dbContext = context;
             webEnvironment = env;
             config = sDxConfig;
-            authService = service;
+            //authService = service;
             blobStorageService = new BlobStorageService();
             Reports = new Dictionary<string, string>();
         }
 
         [FunctionName("CreateJobFunction")]
-        public async Task<IActionResult> Run(
+        public async Task Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
             ILogger log)
         {
@@ -67,8 +70,12 @@ namespace FHSCAzureFunction
                 string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 dynamic tempdata = JsonConvert.DeserializeObject(requestBody);
                 RequestData data = JsonConvert.DeserializeObject<RequestData>(tempdata);
-                
+                var base64EncodedBytes = System.Convert.FromBase64String(data.EncodedAccessToken);
+                Token = System.Text.Encoding.UTF8.GetString(base64EncodedBytes);
+                //Token = data.EncodedAccessToken;
 
+                stopWatch.Reset();
+                stopWatch.Start();
                 //ViewBag.message = "Job added successfully";
                 await ValidateGsapDataAsync(data);
             }
@@ -80,8 +87,6 @@ namespace FHSCAzureFunction
                 dbContext.SaveChanges();
                 return new BadRequestObjectResult("Failed to copy files");*/
             }
-
-            return new OkObjectResult(Reports);
         }
 
 
@@ -109,7 +114,7 @@ namespace FHSCAzureFunction
                 var client = new RestClient(OdataQuery).UseNewtonsoftJson();
 
                 var request = new RestRequest();
-                request.AddHeader("Authorization", "Bearer " + authService.tokenResponse.AccessToken);
+                request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_AMERICAS");
 
                 //Executing the request and obtaining the number of Floc1 records
@@ -134,7 +139,7 @@ namespace FHSCAzureFunction
                 client = new RestClient(OdataQuery).UseNewtonsoftJson();
 
                 request = new RestRequest();
-                request.AddHeader("Authorization", "Bearer " + authService.tokenResponse.AccessToken);
+                request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_EUSA");
 
                 //Executing the request and obtaining the number of Floc1 records
@@ -159,7 +164,7 @@ namespace FHSCAzureFunction
                 client = new RestClient(OdataQuery).UseNewtonsoftJson();
 
                 request = new RestRequest();
-                request.AddHeader("Authorization", "Bearer " + authService.tokenResponse.AccessToken);
+                request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_MEA");
 
                 //Executing the request and obtaining the number of Floc1 records
@@ -200,7 +205,7 @@ namespace FHSCAzureFunction
                 //AMERICAS Region
                 var client = new RestClient(OdataQuery).UseNewtonsoftJson();
                 var request = new RestRequest();
-                request.AddHeader("Authorization", "Bearer " + authService.tokenResponse.AccessToken);
+                request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_AMERICAS");
 
                 //Executing the request and obtaining the number of records
@@ -224,7 +229,7 @@ namespace FHSCAzureFunction
                 //EUSA Region
                 client = new RestClient(OdataQuery).UseNewtonsoftJson();
                 request = new RestRequest();
-                request.AddHeader("Authorization", "Bearer " + authService.tokenResponse.AccessToken);
+                request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_EUSA");
 
                 //Executing the request and obtaining the number of records
@@ -248,7 +253,7 @@ namespace FHSCAzureFunction
                 //MEA Region
                 client = new RestClient(OdataQuery).UseNewtonsoftJson();
                 request = new RestRequest();
-                request.AddHeader("Authorization", "Bearer " + authService.tokenResponse.AccessToken);
+                request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_MEA");
                 response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
 
@@ -286,7 +291,7 @@ namespace FHSCAzureFunction
             {
                 var client = new RestClient(OdataQuery).UseNewtonsoftJson();
                 var request = new RestRequest();
-                request.AddHeader("Authorization", "Bearer " + authService.tokenResponse.AccessToken);
+                request.AddHeader("Authorization", "Bearer " + Token);
 
                 //Executing the request and obtaining the number of records
                 var response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
@@ -427,11 +432,10 @@ namespace FHSCAzureFunction
                 path += columns[0].CsvName + "_JobID_" + id.ToString() + ".csv";
 
                 //Opening the file to write floc1 data
-                using MemoryStream ms = new MemoryStream();
-                using var writer = new StreamWriter(ms);
-                using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-
-                //Creating the mapping between the database columns and the CSV column names
+                MemoryStream ms = new MemoryStream();
+                var writer = new StreamWriter(ms);
+                var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+                
                 var map = new DefaultClassMap<Floc1>();
                 foreach (var c in columns)
                 {
@@ -445,8 +449,16 @@ namespace FHSCAzureFunction
 
                 //Writing to the CSV file
                 csv.WriteRecords(records);
+                csv.Flush();
+                writer.Flush();
+
+                //Creating the mapping between the database columns and the CSV column names
+
+                ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
                 Reports["Floc1"] = filepath;
+                writer.Close();
+                ms.Dispose();
                 dbContext.BulkInsert(records);
             }
             catch (Exception e)
@@ -482,10 +494,10 @@ namespace FHSCAzureFunction
                 path += columns[0].CsvName + "_JobID_" + id.ToString() + ".csv";
 
                 //Opening the file to write floc2 data
-                using MemoryStream ms = new MemoryStream();
-                using var writer = new StreamWriter(ms);
-                using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-
+                MemoryStream ms = new MemoryStream();
+                var writer = new StreamWriter(ms);
+                var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+                
                 //Creating the mapping between the database columns and the CSV column names
                 var map = new DefaultClassMap<Floc2>();
                 foreach (var c in columns)
@@ -500,8 +512,14 @@ namespace FHSCAzureFunction
 
                 //Writing to the CSV file
                 csv.WriteRecords(records);
+                csv.Flush();
+                writer.Flush();
+
+                ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
                 Reports["Floc2"] = filepath;
+                writer.Close();
+                ms.Dispose();
                 dbContext.BulkInsert(records);
             }
             catch (Exception e)
@@ -538,10 +556,10 @@ namespace FHSCAzureFunction
                 path += columns[0].CsvName + "_JobID_" + id.ToString() + ".csv";
 
                 //Opening the file to write floc3 data
-                using MemoryStream ms = new MemoryStream();
-                using var writer = new StreamWriter(ms);
-                using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-
+                MemoryStream ms = new MemoryStream();
+                var writer = new StreamWriter(ms);
+                var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+                
                 //Creating the mapping between the database columns and the CSV column names
                 var map = new DefaultClassMap<Floc3>();
                 foreach (var c in columns)
@@ -556,8 +574,14 @@ namespace FHSCAzureFunction
 
                 //Writing to the CSV file
                 csv.WriteRecords(records);
+                csv.Flush();
+                writer.Flush();                
+                    
+                ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
                 Reports["Floc3"] = filepath;
+                writer.Close();
+                ms.Dispose();
                 dbContext.BulkInsert(records);
             }
             catch (Exception e)
@@ -601,10 +625,10 @@ namespace FHSCAzureFunction
                 path += "TS FLOC Load_JobID_" + id.ToString() + ".csv";
 
                 //Opening the file to write floc1 data
-                using MemoryStream ms = new MemoryStream();
-                using var writer = new StreamWriter(ms);
-                using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-
+                MemoryStream ms = new MemoryStream();
+                var writer = new StreamWriter(ms);
+                var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+                
                 //Creating the mapping between the database columns and the CSV column names
                 var map = new DefaultClassMap<Floc4>();
                 foreach (var c in columns)
@@ -619,8 +643,14 @@ namespace FHSCAzureFunction
 
                 //Writing to the CSV file
                 csv.WriteRecords(records);
+                csv.Flush();
+                writer.Flush();
+
+                ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
                 Reports["Floc4"] = filepath;
+                writer.Close();
+                ms.Dispose();
                 dbContext.BulkInsert(records);
             }
             catch (Exception e)
@@ -670,10 +700,10 @@ namespace FHSCAzureFunction
                 path += "Equipment_JobID_ " + id.ToString() + ".csv";
 
                 //Opening the file to write floc1 data
-                using MemoryStream ms = new MemoryStream();
-                using var writer = new StreamWriter(ms);
-                using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-
+                MemoryStream ms = new MemoryStream();
+                var writer = new StreamWriter(ms);
+                var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+                
                 //Creating the mapping between the database columns and the CSV column names
                 var map = new DefaultClassMap<EquipmentDetails>();
                 foreach (var c in columns)
@@ -688,10 +718,16 @@ namespace FHSCAzureFunction
 
                 //Writing to the CSV file
                 csv.WriteRecords(validEquipments);
+                csv.Flush();
+                writer.Flush();
+
+                ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
                 Reports["Equipment"] = filepath;
-                //Writing data into table in the database
-                dbContext.BulkInsert(validEquipments);
+                writer.Close();
+                ms.Dispose();
+            //Writing data into table in the database
+            dbContext.BulkInsert(validEquipments);
             }
             catch (Exception e)
             {
@@ -833,7 +869,7 @@ namespace FHSCAzureFunction
             try
             {
                 using MemoryStream ms = new MemoryStream();
-                using SpreadsheetDocument spreadsheetDocument = SpreadsheetDocument.Create(ms, SpreadsheetDocumentType.Workbook);
+                SpreadsheetDocument spreadsheetDocument = SpreadsheetDocument.Create(ms, SpreadsheetDocumentType.Workbook);
 
                 WorkbookPart workbookPart = spreadsheetDocument.AddWorkbookPart();
                 //workbookPart.Workbook = new DocumentFormat.OpenXml.Spreadsheet.Workbook();
@@ -1096,7 +1132,10 @@ namespace FHSCAzureFunction
 
                     spreadsheetDocument.WorkbookPart.Workbook = workbook;
                     spreadsheetDocument.WorkbookPart.Workbook.Save();
-                    string filepath = blobStorageService.UploadFileToBlob(fileName, ms, System.Net.Mime.MediaTypeNames.Application.Octet);
+                    spreadsheetDocument.Save();
+                    spreadsheetDocument.Close();
+                    ms.Position = 0;
+                    string filepath = blobStorageService.UploadFileToBlob(fileName, ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
                     Reports["Floc-Error"] = filepath;
                     
                     /*worksheetPart.Worksheet.Save();
@@ -1177,7 +1216,7 @@ namespace FHSCAzureFunction
 
                 //Creating a new excel workbook
                 using MemoryStream ms = new MemoryStream();
-                using SpreadsheetDocument spreadsheetDocument = SpreadsheetDocument.Create(ms, SpreadsheetDocumentType.Workbook);
+                SpreadsheetDocument spreadsheetDocument = SpreadsheetDocument.Create(ms, SpreadsheetDocumentType.Workbook);
 
                 WorkbookPart workbookPart = spreadsheetDocument.AddWorkbookPart();
                 //workbookPart.Workbook = new DocumentFormat.OpenXml.Spreadsheet.Workbook();
@@ -1384,7 +1423,11 @@ namespace FHSCAzureFunction
 
                     spreadsheetDocument.WorkbookPart.Workbook = workbook;
                     spreadsheetDocument.WorkbookPart.Workbook.Save();
-                    string filepath = blobStorageService.UploadFileToBlob(path, ms, System.Net.Mime.MediaTypeNames.Application.Octet);
+                    spreadsheetDocument.Save();
+                    spreadsheetDocument.Close();
+
+                    ms.Position = 0;
+                    string filepath = blobStorageService.UploadFileToBlob(path, ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
                     Reports["Equipment-Error"] = filepath;
                     
                     /*worksheetPart.Worksheet.Save();
@@ -1406,7 +1449,6 @@ namespace FHSCAzureFunction
                     /**/
 
                 }
-
 
             }
             catch (Exception e)
@@ -1478,6 +1520,7 @@ namespace FHSCAzureFunction
                 //Calling the method to read CSV data            
                 //Console.WriteLine("Started reading CSVs at " + DateTime.Now;
                 dataIsReady = ReadCSV(data.JobId, data.GsapFilePath, data.EquipmentFilePath);
+                
                 Console.WriteLine("Completed reading CSVs...");
                 Startup.Percentage = 35;
                 
@@ -1494,6 +1537,10 @@ namespace FHSCAzureFunction
 
                     //Saving status as validation is successfully completed
                     jd.Status = "Validation Completed";
+                    stopWatch.Stop();
+                    var executionTime = stopWatch.Elapsed;
+                    jd.TimeTaken = executionTime.Hours + " Hrs " + executionTime.Minutes + " mins " + executionTime.Seconds + " seconds";
+
                     dbContext.JOB_DETAILS.Update(jd);
                     dbContext.SaveChanges();
                 }
@@ -1503,6 +1550,9 @@ namespace FHSCAzureFunction
                 if (e.Message.Contains("summary"))
                 {
                     jd.Status = "Validation Completed";
+                    stopWatch.Stop();
+                    var executionTime = stopWatch.Elapsed;
+                    jd.TimeTaken = executionTime.Hours + " Hrs " + executionTime.Minutes + " mins " + executionTime.Seconds + " seconds";
                 }
                 else
                 {

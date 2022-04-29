@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FHSCAzureFunction": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}
