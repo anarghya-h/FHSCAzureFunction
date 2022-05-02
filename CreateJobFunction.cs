@@ -50,7 +50,7 @@ namespace FHSCAzureFunction
 
         [FunctionName("CreateJobFunction")]
         public async Task Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
             ILogger log)
         {
             try
