@@ -70,15 +70,6 @@ namespace FHSCAzureFunction
             await blockBlob.DeleteAsync();
         }
 
-
-        private string GenerateFileName(string fileName)
-        {
-            string strFileName = string.Empty;
-            string[] strName = fileName.Split('.');
-            strFileName = DateTime.Now.ToUniversalTime().ToString("yyyy-MM-dd") + "/" + DateTime.Now.ToUniversalTime().ToString("yyyyMMdd\\THHmmssfff") + "." + strName[strName.Length - 1];
-            return strFileName;
-        }
-
         private async Task<string> UploadFileToBlobAsync(string strFileName, MemoryStream fileData, string fileMimeType)
         {
             try

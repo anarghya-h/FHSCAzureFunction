@@ -25,6 +25,7 @@ using X14 = DocumentFormat.OpenXml.Office2010.Excel;
 using FHSCAzureFunction.Models.Configs;
 using FHSCAzureFunction.Services;
 using System.Diagnostics;
+using System.Net.Http;
 
 namespace FHSCAzureFunction
 {
@@ -34,18 +35,16 @@ namespace FHSCAzureFunction
         private readonly FlocHierarchyDBContext dbContext;
         private readonly IWebHostEnvironment webEnvironment;
         private readonly BlobStorageService blobStorageService;
-        private Dictionary<string, string> Reports;
+        
         SDxConfig config;
-        //AuthenticationService authService;
         string Token;
-        public CreateJobFunction(FlocHierarchyDBContext context, IWebHostEnvironment env, SDxConfig sDxConfig, AuthenticationService service)
+
+        public CreateJobFunction(FlocHierarchyDBContext context, IWebHostEnvironment env, SDxConfig sDxConfig)
         {
             dbContext = context;
             webEnvironment = env;
             config = sDxConfig;
-            //authService = service;
             blobStorageService = new BlobStorageService();
-            Reports = new Dictionary<string, string>();
         }
 
         [FunctionName("CreateJobFunction")]
@@ -55,18 +54,6 @@ namespace FHSCAzureFunction
         {
             try
             {
-                /*log.LogInformation("C# HTTP trigger function processed a request.");
-
-                string name = req.Query["name"];
-
-                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                dynamic data = JsonConvert.DeserializeObject(requestBody);
-                name = name ?? data?.name;
-
-                string responseMessage = string.IsNullOrEmpty(name)
-                    ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                    : $"Hello, {name}. This HTTP triggered function executed successfully.";*/
-
                 string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 dynamic tempdata = JsonConvert.DeserializeObject(requestBody);
                 RequestData data = JsonConvert.DeserializeObject<RequestData>(tempdata);
@@ -77,15 +64,10 @@ namespace FHSCAzureFunction
                 stopWatch.Reset();
                 stopWatch.Start();
                 //ViewBag.message = "Job added successfully";
-                await ValidateGsapDataAsync(data);
+                await ValidateGsapDataAsync(data, log);
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                /*jd.Status = "Validation Failed";
-                jd.ErrorMessage = "Could not copy files: " + e.Message;
-                dbContext.JOB_DETAILS.Update(jd);
-                dbContext.SaveChanges();
-                return new BadRequestObjectResult("Failed to copy files");*/
             }
         }
 
@@ -110,12 +92,18 @@ namespace FHSCAzureFunction
                 string OdataQuery = config.ServerBaseUri + Pbstype + $"?$count=true";
                 string OdataQuery1 = config.ServerBaseUri + Pbstype + $"?$select=Name,Terminal_Description,Country_Code&$expand=SDAUnit($select=Cluster)&$top=";
 
-                //AMERICAS Region                
-                var client = new RestClient(OdataQuery).UseNewtonsoftJson();
+                //AMERICAS Region
+                HttpClientHandler clientHandler = new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => { return true; },
+                    SslProtocols = System.Security.Authentication.SslProtocols.Tls | System.Security.Authentication.SslProtocols.Tls11 | System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13
+                };
+                var client = new RestClient(clientHandler).UseNewtonsoftJson();                
 
-                var request = new RestRequest();
+                var request = new RestRequest(OdataQuery);
                 request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_AMERICAS");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
 
                 //Executing the request and obtaining the number of Floc1 records
                 var response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
@@ -123,24 +111,29 @@ namespace FHSCAzureFunction
 
                 //Appending the count to the 2nd query to get the details including name, description, country and cluster
                 string NewQuery = OdataQuery1 + count.ToString();
-                client = new RestClient(NewQuery).UseNewtonsoftJson();
+                request = new RestRequest(NewQuery);
+                request.AddHeader("Authorization", "Bearer " + Token);
+                request.AddHeader("SPFConfigUID", "PL_AMERICAS");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                 response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
                 Floc1.AddRange(response.Value);
 
                 //Obtaining the response repeatedly if there are more than 1000 records
                 while (response.NextLink != null)
                 {
-                    client = new RestClient(response.NextLink).UseNewtonsoftJson();
+                    request = new RestRequest(response.NextLink);
+                    request.AddHeader("Authorization", "Bearer " + Token);
+                    request.AddHeader("SPFConfigUID", "PL_AMERICAS");
+                    //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                     response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
                     Floc1.AddRange(response.Value);
                 }
 
                 //EUSA Region
-                client = new RestClient(OdataQuery).UseNewtonsoftJson();
-
-                request = new RestRequest();
+                request = new RestRequest(OdataQuery);
                 request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_EUSA");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
 
                 //Executing the request and obtaining the number of Floc1 records
                 response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
@@ -148,24 +141,29 @@ namespace FHSCAzureFunction
 
                 //Appending the count to the 2nd query to get the details including name, description, country and cluster
                 NewQuery = OdataQuery1 + count.ToString();
-                client = new RestClient(NewQuery).UseNewtonsoftJson();
+                request = new RestRequest(NewQuery);
+                request.AddHeader("Authorization", "Bearer " + Token);
+                request.AddHeader("SPFConfigUID", "PL_EUSA");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                 response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
                 Floc1.AddRange(response.Value);
 
                 //Obtaining the response repeatedly if there are more than 1000 records
                 while (response.NextLink != null)
                 {
-                    client = new RestClient(response.NextLink).UseNewtonsoftJson();
+                    request = new RestRequest(response.NextLink);
+                    request.AddHeader("Authorization", "Bearer " + Token);
+                    request.AddHeader("SPFConfigUID", "PL_EUSA");
+                    //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                     response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
                     Floc1.AddRange(response.Value);
                 }
 
                 //MEA Region
-                client = new RestClient(OdataQuery).UseNewtonsoftJson();
-
-                request = new RestRequest();
+                request = new RestRequest(OdataQuery);
                 request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_MEA");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
 
                 //Executing the request and obtaining the number of Floc1 records
                 response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
@@ -173,14 +171,20 @@ namespace FHSCAzureFunction
 
                 //Appending the count to the 2nd query to get the details including name, description, country and cluster
                 NewQuery = OdataQuery1 + count.ToString();
-                client = new RestClient(NewQuery).UseNewtonsoftJson();
+                request = new RestRequest(NewQuery);
+                request.AddHeader("Authorization", "Bearer " + Token);
+                request.AddHeader("SPFConfigUID", "PL_MEA");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                 response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
                 Floc1.AddRange(response.Value);
 
                 //Obtaining the response repeatedly if there are more than 1000 records
                 while (response.NextLink != null)
                 {
-                    client = new RestClient(response.NextLink).UseNewtonsoftJson();
+                    request = new RestRequest(response.NextLink);
+                    request.AddHeader("Authorization", "Bearer " + Token);
+                    request.AddHeader("SPFConfigUID", "PL_MEA");
+                    //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                     response = await client.GetAsync<OdataQueryResponse<Floc1Data>>(request);
                     Floc1.AddRange(response.Value);
                 }
@@ -203,10 +207,17 @@ namespace FHSCAzureFunction
                 string OdataQuery1 = config.ServerBaseUri + Pbstype + $"?$select=Name&$top=";
 
                 //AMERICAS Region
-                var client = new RestClient(OdataQuery).UseNewtonsoftJson();
-                var request = new RestRequest();
+                HttpClientHandler clientHandler = new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => { return true; },
+                    SslProtocols = System.Security.Authentication.SslProtocols.Tls | System.Security.Authentication.SslProtocols.Tls11 | System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13
+                };
+                var client = new RestClient(clientHandler).UseNewtonsoftJson();
+
+                var request = new RestRequest(OdataQuery);
                 request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_AMERICAS");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
 
                 //Executing the request and obtaining the number of records
                 var response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
@@ -214,23 +225,29 @@ namespace FHSCAzureFunction
 
                 //Appending the count to the 2nd query to get the details including name
                 string NewQuery = OdataQuery1 + count.ToString();
-                client = new RestClient(NewQuery).UseNewtonsoftJson();
+                request = new RestRequest(NewQuery);
+                request.AddHeader("Authorization", "Bearer " + Token);
+                request.AddHeader("SPFConfigUID", "PL_AMERICAS");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                 response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                 floc.AddRange(response.Value);
 
                 //Obtaining the response repeatedly if there are more than 1000 records
                 while (response.NextLink != null)
                 {
-                    client = new RestClient(response.NextLink).UseNewtonsoftJson();
+                    request = new RestRequest(response.NextLink);
+                    request.AddHeader("Authorization", "Bearer " + Token);
+                    request.AddHeader("SPFConfigUID", "PL_AMERICAS");
+                    //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                     response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                     floc.AddRange(response.Value);
                 }
 
                 //EUSA Region
-                client = new RestClient(OdataQuery).UseNewtonsoftJson();
-                request = new RestRequest();
+                request = new RestRequest(OdataQuery);
                 request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_EUSA");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
 
                 //Executing the request and obtaining the number of records
                 response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
@@ -238,37 +255,49 @@ namespace FHSCAzureFunction
 
                 //Appending the count to the 2nd query to get the details including name
                 NewQuery = OdataQuery1 + count.ToString();
-                client = new RestClient(NewQuery).UseNewtonsoftJson();
+                request = new RestRequest(NewQuery);
+                request.AddHeader("Authorization", "Bearer " + Token);
+                request.AddHeader("SPFConfigUID", "PL_EUSA");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                 response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                 floc.AddRange(response.Value);
 
                 //Obtaining the response repeatedly if there are more than 1000 records
                 while (response.NextLink != null)
                 {
-                    client = new RestClient(response.NextLink).UseNewtonsoftJson();
+                    request = new RestRequest(response.NextLink);
+                    request.AddHeader("Authorization", "Bearer " + Token);
+                    request.AddHeader("SPFConfigUID", "PL_EUSA");
+                    //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                     response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                     floc.AddRange(response.Value);
                 }
 
                 //MEA Region
-                client = new RestClient(OdataQuery).UseNewtonsoftJson();
-                request = new RestRequest();
+                request = new RestRequest(OdataQuery);
                 request.AddHeader("Authorization", "Bearer " + Token);
                 request.AddHeader("SPFConfigUID", "PL_MEA");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                 response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
 
                 count = response.Count;
 
                 //Appending the count to the 2nd query to get the details including name
                 NewQuery = OdataQuery1 + count.ToString();
-                client = new RestClient(NewQuery).UseNewtonsoftJson();
+                request = new RestRequest(NewQuery);
+                request.AddHeader("Authorization", "Bearer " + Token);
+                request.AddHeader("SPFConfigUID", "PL_MEA");
+                //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                 response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                 floc.AddRange(response.Value);
 
                 //Obtaining the response repeatedly if there are more than 1000 records
                 while (response.NextLink != null)
                 {
-                    client = new RestClient(response.NextLink).UseNewtonsoftJson();
+                    request = new RestRequest(response.NextLink);
+                    request.AddHeader("Authorization", "Bearer " + Token);
+                    request.AddHeader("SPFConfigUID", "PL_MEA");
+                    //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                     response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                     floc.AddRange(response.Value);
                 }
@@ -289,23 +318,34 @@ namespace FHSCAzureFunction
 
             try
             {
-                var client = new RestClient(OdataQuery).UseNewtonsoftJson();
-                var request = new RestRequest();
+                HttpClientHandler clientHandler = new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => { return true; },
+                    SslProtocols = System.Security.Authentication.SslProtocols.Tls | System.Security.Authentication.SslProtocols.Tls11 | System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13
+                };
+                var client = new RestClient(clientHandler).UseNewtonsoftJson();
+
+                var request = new RestRequest(OdataQuery);
                 request.AddHeader("Authorization", "Bearer " + Token);
+                ////request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
 
                 //Executing the request and obtaining the number of records
                 var response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                 var count = response.Count;
 
                 string NewQuery = OdataQuery1 + count.ToString();
-                client = new RestClient(NewQuery).UseNewtonsoftJson();
+                request = new RestRequest(NewQuery);
+                request.AddHeader("Authorization", "Bearer " + Token);
+                ////request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                 response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                 objType.AddRange(response.Value);
 
                 //Obtaining the response repeatedly if there are more than 1000 records
                 while (response.NextLink != null)
                 {
-                    client = new RestClient(response.NextLink).UseNewtonsoftJson();
+                    request = new RestRequest(response.NextLink);
+                    request.AddHeader("Authorization", "Bearer " + Token);
+                    //request.AddHeader("X-Ingr-OnBehalfOf", "SHG38P.JKundu");
                     response = await client.GetAsync<OdataQueryResponse<PbsObject>>(request);
                     objType.AddRange(response.Value);
                 }
@@ -456,7 +496,7 @@ namespace FHSCAzureFunction
 
                 ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
-                Reports["Floc1"] = filepath;
+                
                 writer.Close();
                 ms.Dispose();
                 dbContext.BulkInsert(records);
@@ -517,7 +557,7 @@ namespace FHSCAzureFunction
 
                 ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
-                Reports["Floc2"] = filepath;
+                
                 writer.Close();
                 ms.Dispose();
                 dbContext.BulkInsert(records);
@@ -579,7 +619,7 @@ namespace FHSCAzureFunction
                     
                 ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
-                Reports["Floc3"] = filepath;
+                
                 writer.Close();
                 ms.Dispose();
                 dbContext.BulkInsert(records);
@@ -648,7 +688,7 @@ namespace FHSCAzureFunction
 
                 ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
-                Reports["Floc4"] = filepath;
+                
                 writer.Close();
                 ms.Dispose();
                 dbContext.BulkInsert(records);
@@ -723,7 +763,7 @@ namespace FHSCAzureFunction
 
                 ms.Position = 0;
                 string filepath = blobStorageService.UploadFileToBlob(path, ms, "text/csv");
-                Reports["Equipment"] = filepath;
+                
                 writer.Close();
                 ms.Dispose();
             //Writing data into table in the database
@@ -859,7 +899,7 @@ namespace FHSCAzureFunction
         }
 
         //Method to validate the GSAP data
-        void ValidateData(int id, SDxData sDxData)
+        void ValidateData(int id, SDxData sDxData, ILogger logger)
         {
             //SpreadsheetDocument spreadsheetDocument = null;
             WorksheetPart worksheetPart = null;
@@ -919,9 +959,8 @@ namespace FHSCAzureFunction
 
                 if (data != null)
                 {
-                    Console.WriteLine("FLOC data validation started...");
-                    Startup.Percentage = 40;
-                    //Iterating through each functional location of GSAP data
+                    logger.LogInformation("FLOC data validation started...");
+                                        //Iterating through each functional location of GSAP data
                     foreach (var record in data)
                     {
                         if (record.ActualLevel != 0)
@@ -1136,13 +1175,12 @@ namespace FHSCAzureFunction
                     spreadsheetDocument.Close();
                     ms.Position = 0;
                     string filepath = blobStorageService.UploadFileToBlob(fileName, ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-                    Reports["Floc-Error"] = filepath;
+                    
                     
                     /*worksheetPart.Worksheet.Save();
                     spreadsheetDocument.Close();*/
-                    Console.WriteLine("Floc Error Report generated...");
-                    Startup.Percentage = 50;
-
+                    logger.LogInformation("Floc Error Report generated...");
+                    
                     //Updating the record in GSAP_ORIGINAL_DATA
                     try
                     {
@@ -1153,17 +1191,15 @@ namespace FHSCAzureFunction
                         throw new Exception("Could not update validated GSAP in database: " + e.Message);
                     }
 
-                    Console.WriteLine("Data validation completed");
-                    Startup.Percentage = 55;
-
+                    logger.LogInformation("Data validation completed");
+                    
                     //Segregating records according to the floc level and inserting it to the respective tables and generating the CSVs                
                     WriteFloc1Details(data, sDxData.Floc1Data, id);
                     WriteFloc2Details(data, id);
                     WriteFloc3Details(data, id);
                     WriteFloc4Details(data, id);
-                    Console.WriteLine("FLOCs written to database and CSVs generated");
-                    Startup.Percentage = 60;
-
+                    logger.LogInformation("FLOCs written to database and CSVs generated");
+                    
                 }
             }
             catch (Exception e)
@@ -1187,12 +1223,13 @@ namespace FHSCAzureFunction
         }
 
         //Method to validate the equipment data from GSAP
-        void ValidateEquipmentData(int id, List<PbsObject> existingEquipment, List<PbsObject> technicalObjectTypeData)
+        void ValidateEquipmentData(int id, List<PbsObject> existingEquipment, List<PbsObject> technicalObjectTypeData, ILogger logger)
         {
             string path = "UploadedFiles/" + id.ToString() + "/Reports/Equipment-Error/equipment_error_report_JobID_" + id.ToString() + ".xlsx";
             List<EquipmentDataFromGsap> data = null;
             List<CsvColMapper> columns = null;
             List<string> technicalObjects = null;
+            List<Floc4> Floc4Data = null;
             //SpreadsheetDocument spreadsheetDocument = null;
             WorksheetPart worksheetPart = null;
             try
@@ -1203,6 +1240,7 @@ namespace FHSCAzureFunction
                     data = dbContext.EQUIPMENT_DATA_FROM_GSAP.Where(x => x.JobId == id).ToList();
                     technicalObjects = technicalObjectTypeData.Select(x => x.Name).ToList();
                     columns = dbContext.CSV_COL_MAPPER.Where(x => x.DbTableName == "EQUIPMENT_DATA_FROM_GSAP").OrderBy(x => x.CsvColSequence).ToList();
+                    Floc4Data = dbContext.FLOC_4_DETAILS.Where(x => x.JobId == id).ToList();
 
                 }
                 catch (Exception e)
@@ -1283,8 +1321,7 @@ namespace FHSCAzureFunction
 
                 if (data != null)
                 {
-                    Console.WriteLine("Equipment data validation started ");
-                    Startup.Percentage = 70;
+                    logger.LogInformation("Equipment data validation started ");
                     foreach (var equip in data)
                     {
                         Floc4 result = null;
@@ -1300,7 +1337,7 @@ namespace FHSCAzureFunction
                         //Checking if the functional location of the equipment is valid or not
                         try
                         {
-                            result = dbContext.FLOC_4_DETAILS.Where(f => f.FunctionalLocation == equip.FunctionalLocation && f.JobId == id).FirstOrDefault();
+                            result = Floc4Data.Where(f => f.FunctionalLocation == equip.FunctionalLocation).FirstOrDefault();
                         }
                         catch (Exception e)
                         {
@@ -1403,8 +1440,7 @@ namespace FHSCAzureFunction
                         sheetData.Append(r);
 
                         /*if (data.IndexOf(equip) % 1000 == 0)
-                            Startup.Progress += data.IndexOf(equip) + " " + DateTime.Now);*/
-
+                            Console.WriteLine("Equipment " + data.IndexOf(equip) + " validated at " + DateTime.Now);*/
                     }
 
                     worksheet.Append(sheetData);
@@ -1428,25 +1464,22 @@ namespace FHSCAzureFunction
 
                     ms.Position = 0;
                     string filepath = blobStorageService.UploadFileToBlob(path, ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-                    Reports["Equipment-Error"] = filepath;
+                    
                     
                     /*worksheetPart.Worksheet.Save();
                     spreadsheetDocument.Close();*/
-                    Console.WriteLine("Equipment error report generated");
-                    Startup.Percentage = 80;
-
+                    logger.LogInformation("Equipment error report generated");
+                    
 
                     //Updating the error status in the database table
                     dbContext.BulkUpdate(data);
-                    Console.WriteLine("Equipments validation completed");
-                    Startup.Percentage = 95;
-
+                    logger.LogInformation("Equipments validation completed");
+                    
 
                     //Calling the method to write the valid data into a separate table
                     WriteEquipmentDetails(id);
-                    Console.WriteLine("Equipments written to database and CSV generated");
-                    Startup.Percentage = 99;
-                    /**/
+                    logger.LogInformation("Equipments written to database and CSV generated");
+                                        
 
                 }
 
@@ -1482,20 +1515,21 @@ namespace FHSCAzureFunction
 
         //Action to validate data
         
-        public async Task ValidateGsapDataAsync(RequestData data)
+        public async Task ValidateGsapDataAsync(RequestData data, ILogger logger)
         {
             //Id = id;
             Startup.Progress = "";
-            Startup.Percentage = 0;
-
+            
             JobDetails jd = dbContext.JOB_DETAILS.Where(x => x.JobId == data.JobId).FirstOrDefault();
             bool dataIsReady = false;
             try
             {
 
-                Console.WriteLine("Reading data from SDx... \n\n (May take a few minutes)");
-                Startup.Percentage = 10;
-                Task<List<Floc1Data>> F1 = GetFloc1DetailsFromSDx("Subunits");
+                logger.LogInformation("Reading data from SDx...(May take a few minutes)");
+                jd.Status = "Retrieving data from SDx";
+                dbContext.JOB_DETAILS.Update(jd);
+                dbContext.SaveChanges();
+                                Task<List<Floc1Data>> F1 = GetFloc1DetailsFromSDx("Subunits");
                 Task<List<PbsObject>> F2 = GetFlocDetailsFromSDx("floc2s");
                 Task<List<PbsObject>> F3 = GetFlocDetailsFromSDx("floc3s");
                 Task<List<PbsObject>> F4 = GetFlocDetailsFromSDx("FLOCs");
@@ -1503,9 +1537,8 @@ namespace FHSCAzureFunction
                 Task<List<PbsObject>> TechinalObjType = GetTechnicalObjTypeDataFromSDx();
 
                 await Task.WhenAll(F1, F2, F3, F4, Equipment, TechinalObjType);
-                Console.WriteLine("Retrieved data from SDx");
-                Startup.Percentage = 25;
-
+                logger.LogInformation("Retrieved data from SDx");
+                
                 SDxData sDxData = new SDxData
                 {
                     Floc1Data = F1.Result,
@@ -1518,22 +1551,31 @@ namespace FHSCAzureFunction
                 List<PbsObject> technicalObjTypeData = TechinalObjType.Result;
 
                 //Calling the method to read CSV data            
-                //Console.WriteLine("Started reading CSVs at " + DateTime.Now;
+                //logger.LogInformation("Started reading CSVs at " + DateTime.Now;
+                jd.Status = "Reading data from files";
+                dbContext.JOB_DETAILS.Update(jd);
+                dbContext.SaveChanges();
                 dataIsReady = ReadCSV(data.JobId, data.GsapFilePath, data.EquipmentFilePath);
                 
-                Console.WriteLine("Completed reading CSVs...");
-                Startup.Percentage = 35;
-                
+                logger.LogInformation("Completed reading CSVs...");
+                                
 
                 //Data successfully read from CSV
                 if (dataIsReady == true)
                 {
-                    jd.Status = "Validating Data";
+                    jd.Status = "Validating Floc Data";
                     dbContext.JOB_DETAILS.Update(jd);
                     dbContext.SaveChanges();
                     //Calling the methods to validate the data
-                    ValidateData(data.JobId, sDxData);
-                    ValidateEquipmentData(data.JobId, equipmentData, technicalObjTypeData);
+                    ValidateData(data.JobId, sDxData, logger);
+
+                    jd.Status = "Validating Equipment Data";
+                    dbContext.JOB_DETAILS.Update(jd);
+                    dbContext.SaveChanges();
+                    ValidateEquipmentData(data.JobId, equipmentData, technicalObjTypeData, logger);
+                    jd.Status = "Equipment Data Validation Completed";
+                    dbContext.JOB_DETAILS.Update(jd);
+                    dbContext.SaveChanges();
 
                     //Saving status as validation is successfully completed
                     jd.Status = "Validation Completed";
