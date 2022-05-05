@@ -1,0 +1,20 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "Container": "fhscblobcontainer"
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=tcp:fhsc-sql-db-svr.database.windows.net,1433;Initial Catalog=FHSC-DB;Persist Security Info=False;User ID=sqladmin;Password=Fhsc#2022;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;",
+    "StorageAccount": "DefaultEndpointsProtocol=https;AccountName=shl31monaprodclienttext;AccountKey=pDjOPs7uLjqu1j5Ly9wwfl/ku1tNlW9X63I5hZd8nqT7dZhUV/3kSUCXK3JVG20fAiO+ufIQlpBeWSuDdR8u0Q==;EndpointSuffix=core.windows.net"
+  },
+  "SDxConfig": {
+    "ServerBaseUri": "https://shg38-sdg.intergraphsmartcloud.com/tsdevserver/api/v2/SDA/",
+    "ServerResourceID": "DB2824ED-9383-422B-AC6E-AFA8920D1BB3 ingr.api",
+    "AuthServerAuthority": "https://auth.intergraphsmartcloud.com/oauth2/aus5b864nnCIg8ueA0i7",
+    "AuthClientId": "0oa6muu59aZCncXJd0i7",
+    "AuthClientSecret": "__JpIJKjzgAFEnYdibMgmWP1Fhekw7rYGPXodG7p"
+  }
+
+}
