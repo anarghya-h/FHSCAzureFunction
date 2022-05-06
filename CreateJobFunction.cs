@@ -1540,7 +1540,6 @@ namespace FHSCAzureFunction
         public async Task ValidateGsapDataAsync(RequestData data, ILogger logger)
         {
             //Id = id;
-            Startup.Progress = "";
 
             JobDetails jd = dbContext.JOB_DETAILS.Where(x => x.JobId == data.JobId).FirstOrDefault();
             bool dataIsReady = false;
