@@ -3,7 +3,8 @@
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet",
-    "Container": "fhscblobcontainer"
+    "Container": "fhscblobcontainer",
+    "APPINSIGHTS_INSTRUMENTATIONKEY": "1a684a4a-63b5-47e7-ac79-1101e047a60b"
   },
   "ConnectionStrings": {
     "DefaultConnection": "Server=tcp:fhsc-sql-db-svr.database.windows.net,1433;Initial Catalog=FHSC-DB;Persist Security Info=False;User ID=sqladmin;Password=Fhsc#2022;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;",

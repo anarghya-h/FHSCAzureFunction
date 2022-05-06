@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using FHSCAzureFunction.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
@@ -8,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using FHSCAzureFunction.Services;
 using FHSCAzureFunction.Models.Configs;
-using Microsoft.Extensions.Hosting;
 using FHSCAzureFunction.AppConfig;
 
 [assembly: FunctionsStartup(typeof(FHSCAzureFunction.Startup))]
@@ -16,14 +13,6 @@ namespace FHSCAzureFunction
 {
     class Startup : FunctionsStartup
     {
-        public static int Percentage { get; set; }
-        public static string Progress { get; set; }
-        
-        /*public Startup() { }
-        public Startup(IConfiguration configuration)
-        {
-            Configuration = configuration;
-        }*/
         public override void Configure(IFunctionsHostBuilder builder)
         {
             var Configuration = builder.Services.BuildServiceProvider().GetService<IConfiguration>();
