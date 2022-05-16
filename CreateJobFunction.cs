@@ -659,7 +659,7 @@ namespace FHSCAzureFunction
             try
             {
                 //Reading the columns information from the database
-                var columns = dbContext.CSV_COL_MAPPER.Where(x => x.DbTableName == "GSAP_ORIGINAL_DATA").ToList();
+                var columns = dbContext.CSV_COL_MAPPER.Where(x => x.DbTableName == "GSAP_ORIGINAL_DATA").OrderBy(x => x.CsvColSequence).ToList();
                 path += "TS FLOC Load_JobID_" + id.ToString() + ".csv";
 
                 //Opening the file to write floc1 data
@@ -734,7 +734,7 @@ namespace FHSCAzureFunction
             try
             {
                 //Reading the columns information from the database
-                var columns = dbContext.CSV_COL_MAPPER.Where(x => x.DbTableName == "EQUIPMENT_DATA_FROM_GSAP").ToList();
+                var columns = dbContext.CSV_COL_MAPPER.Where(x => x.DbTableName == "EQUIPMENT_DATA_FROM_GSAP").OrderBy(x => x.CsvColSequence).ToList();
                 path += "Equipment_JobID_ " + id.ToString() + ".csv";
 
                 //Opening the file to write floc1 data
@@ -961,6 +961,8 @@ namespace FHSCAzureFunction
                 {
                     logger.LogInformation("FLOC data validation started...");
                     jd.ProgressPercentage = 40;
+                    dbContext.JOB_DETAILS.Update(jd);
+                    dbContext.SaveChanges();
                     //Iterating through each functional location of GSAP data
                     foreach (var record in data)
                     {
@@ -1521,7 +1523,7 @@ namespace FHSCAzureFunction
                     NewRecords = data.Where(x => x.IsNewRecord == true).Count()
 
                 };
-                summary.ImpactedRecords = summary.Errors;
+                summary.ImpactedRecords = data.Where(x => x.FlocHasError == true).Count();
                 summary.ErrorPercentage = Math.Round((decimal)summary.Errors / summary.TotalRecords * 100, 5);
                 summary.ImpactedPercentage = Math.Round((decimal)summary.ImpactedRecords / summary.TotalRecords * 100, 5);
                 summary.NewRecordPercentage = Math.Round((decimal)summary.NewRecords / summary.TotalRecords * 100, 5);
@@ -1539,7 +1541,6 @@ namespace FHSCAzureFunction
 
         public async Task ValidateGsapDataAsync(RequestData data, ILogger logger)
         {
-            //Id = id;
 
             JobDetails jd = dbContext.JOB_DETAILS.Where(x => x.JobId == data.JobId).FirstOrDefault();
             bool dataIsReady = false;
