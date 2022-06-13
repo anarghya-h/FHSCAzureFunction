@@ -1,7 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
-using FHSCAzureFunction.Models;
 
 namespace FHSCAzureFunction.Models
 {
@@ -27,7 +26,6 @@ namespace FHSCAzureFunction.Models
         public DbSet<JobDetails> JOB_DETAILS { get; set; }
         public DbSet<CsvColMapper> CSV_COL_MAPPER { get; set; }
         public DbSet<Datacharts> JOB_SUMMARY { get; set; }
-        public DbSet<TechnicalObjects> TECHNICAL_OBJECTS { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -50,12 +48,7 @@ namespace FHSCAzureFunction.Models
                 .HasKey(c => new { c.JobId, c.FlocLevel3Name });
 
             modelBuilder.Entity<Floc4>()
-                .HasKey(c => new { c.JobId, c.FunctionalLocation });
-
-            modelBuilder.Entity<TechnicalObjects>()
-                .HasKey(c => new { c.JobId, c.TechnicalObjectType });
-
-            
+                .HasKey(c => new { c.JobId, c.FunctionalLocation });           
 
         }
     }

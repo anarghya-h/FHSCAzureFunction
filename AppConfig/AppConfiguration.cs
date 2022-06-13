@@ -8,14 +8,20 @@ namespace FHSCAzureFunction.AppConfig
 {
     public static class AppConfiguration
     {
+        #region Private member variables
         private static IConfiguration currentConfig;
+        #endregion
 
+        #region Constructors
+        //setting the configuration from Startup
         public static void SetConfig(IConfiguration configuration)
         {
             currentConfig = configuration;
         }
+        #endregion
 
-
+        #region Public members
+        //Getting the connection string for the Azure storage account
         public static string GetConfiguration(string configKey)
         {
             try
@@ -29,6 +35,7 @@ namespace FHSCAzureFunction.AppConfig
             }
         }
 
+        //Getting the container name from app settings
         public static string GetContainer(string configKey)
         {
             try
@@ -41,6 +48,7 @@ namespace FHSCAzureFunction.AppConfig
                 throw (ex);
             }
         }
+        #endregion
 
     }
 }
